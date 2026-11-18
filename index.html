@@ -200,7 +200,7 @@
       <div class="brand-group">
         <div class="brand-icon">📦</div>
         <div>
-          <h1 class="brand-title" id="headerProjectNameBadge">🏢 โครงการอาคารชุดนิติบุคคล</h1>
+          <h1 class="brand-title" id="headerProjectNameBadge">🏢 ระบบจัดการและแจ้งรับพัสดุภายในอาคาร</h1>
           <p class="brand-subtitle" id="headerProjectSubtitle">Juristic Parcel &amp; Request Management Portal</p>
         </div>
       </div>
@@ -242,7 +242,7 @@
           <div>
             <h2 class="card-title" id="userFormCardTitle">📝 แบบฟอร์มแจ้งขอรับพัสดุ</h2>
             <p class="card-desc" id="userFormCardDesc">เลือกหรือพิมพ์บ้านเลขที่ และระบุจุดรับพัสดุที่ต้องการ</p>
-            <div id="mobileFormProjectTitle" class="hidden">🏢 โครงการอาคารชุดนิติบุคคล</div>
+            <div id="mobileFormProjectTitle" class="hidden">🏢 ระบบจัดการและแจ้งรับพัสดุภายในอาคาร</div>
           </div>
         </div>
         <form id="userRequestForm" onsubmit="handleUserRequestSubmit(event)" novalidate="">
@@ -941,7 +941,7 @@
                 <h2 class="card-title">🏢 การตั้งค่าชื่อโครงการ / อาคาร (Project Name Settings)</h2>
                 <p class="card-desc">กำหนดชื่อโครงการเพื่อแสดงบน Header ทุกหน้าของเว็บไซต์ และในใบรายงานรายงานจ่ายพัสดุ A4 / Excel</p>
               </div>
-              <span class="badge badge-matched" id="currentProjectBadgePreview">🏢 โครงการอาคารชุดนิติบุคคล</span>
+              <span class="badge badge-matched" id="currentProjectBadgePreview">🏢 ระบบจัดการและแจ้งรับพัสดุภายในอาคาร</span>
             </div>
             <form onsubmit="handleSaveProjectName(event)" novalidate="" style="background: var(--surface-alt); padding: 18px 20px; border-radius: 12px; border: 1px solid var(--border);">
               <div class="form-grid" style="align-items: flex-end;">
@@ -1152,11 +1152,11 @@
   <!-- Modal -->
   <div class="modal-backdrop" id="customConfirmModal" role="dialog" aria-modal="true">
     <div class="modal-box">
-      <h3 class="modal-title" id="modalTitleText">ยืนยันสำเร็จ</h3>
-      <p class="modal-body" id="modalBodyText">บันทึกข้อมูลเชื่อมต่อสำเร็จ</p>
+      <h3 class="modal-title" id="modalTitleText">ยืนยันการทำรายการ</h3>
+      <p class="modal-body" id="modalBodyText">คุณต้องการดำเนินการนี้ใช่หรือไม่?</p>
       <div class="modal-actions">
-        <button type="button" class="btn btn-secondary" id="modalCancelBtn" onclick="closeConfirmModal()" style="display: none;">ยกเลิก</button>
-        <button type="button" class="btn btn-primary" id="modalConfirmBtn">รับทราบ</button>
+        <button type="button" class="btn btn-secondary" id="modalCancelBtn" onclick="closeConfirmModal()">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" id="modalConfirmBtn">ยืนยัน</button>
       </div>
     </div>
   </div>
@@ -1212,7 +1212,7 @@
       textAnnouncements: [{ id: "txt-1", message: "📢 ประกาศจากนิติบุคคล: กรุณารับพัสดุภายใน 3 วันทำการ" }],
       admins: [{ id: "adm-1", username: "admin", password: "1234", displayName: "ธุรการ", role: "Super Admin", active: true }],
       gasUrl: "https://script.google.com/macros/s/AKfycbyeBjwzxg-w9l9efhBNIC-jzJUxaHQ0-r7m575hJYxuPfWeeGOabjnrUNhsdshcsGDIDg/exec",
-      projectName: "ระบบจัดการและแจ้งรับพัสดุภายในอาคาร",
+      projectName: "ระบบจัดการและแจ้งรับพัสดุภายในอาคาร (สาขาสำเนา)",
       slideshowSpeedMs: 5000,
       telegram: { botToken: "7691556293:AAE3lr_WwH5PE4h9S3UWUOP2HkUdmqX8qi4", chatId: "-1003472008445", enabled: true, connected: true },
       connectionLogs: [],

@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="th"><head>
+  <link rel="icon" href="data:,">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ระบบจัดการและแจ้งรับพัสดุนิติบุคคล</title>
@@ -1231,9 +1232,12 @@
       return false;
     }
 
-    function saveStateToStorage() {
+    function saveStateToStorage(skipCloudPush = false) {
       try {
         localStorage.setItem("juristic_parcel_app_v1", JSON.stringify(appState));
+        if (!skipCloudPush) {
+          pushStateToGoogleSheetsCloud(true);
+        }
       } catch (e) {}
     }
 
@@ -2167,12 +2171,118 @@
       URL.revokeObjectURL(url);
     }
 
-    function handleBackupToGoogleDrive() {
+    let draftGasUrl = "";
+    let isCloudSyncing = false;
+    let cloudSyncTimer = null;
+
+    function handleDraftGasUrlInput(val) {
+      draftGasUrl = String(val || "").trim();
+    }
+
+    function renderAdminAuthView() {
+      const gate = document.getElementById("adminLoginGate");
+      if (!gate) return;
+      if (isAdminAuthenticated) {
+        gate.classList.add("hidden");
+      } else {
+        gate.classList.remove("hidden");
+      }
+    }
+
+    function addConnectionLog(type, status, message) {
+      if (!Array.isArray(appState.connectionLogs)) appState.connectionLogs = [];
+      appState.connectionLogs.unshift({
+        id: "log-" + Date.now(),
+        time: `${getTodayDateString()} ${getCurrentTimeString()}`,
+        type: type,
+        status: status,
+        message: message
+      });
+      if (appState.connectionLogs.length > 100) {
+        appState.connectionLogs = appState.connectionLogs.slice(0, 100);
+      }
+    }
+
+    function updateCloudSyncBadge(online, text) {
+      const badgeText = document.getElementById("realSyncText");
+      const cardBadge = document.getElementById("connCardCloudBadge");
+      const cardDetail = document.getElementById("connCardCloudDetail");
+      const latestBadge = document.getElementById("latestSyncStatusBadge");
+
+      if (badgeText) badgeText.textContent = text || (online ? "Real-Sync ออนไลน์" : "ออฟไลน์ / รอเชื่อมต่อ");
+      if (cardBadge) {
+        cardBadge.textContent = online ? "เชื่อมต่อออนไลน์" : "ไม่ได้เชื่อมต่อ";
+        cardBadge.className = online ? "badge badge-matched" : "badge badge-unmatched";
+      }
+      if (cardDetail) {
+        cardDetail.textContent = text || (online ? "โหมดซิงค์อัตโนมัติ Real-Sync ทำงานอยู่" : "กรุณาตรวจสอบลิงก์ GAS Web App URL");
+      }
+      if (latestBadge && online) {
+        latestBadge.textContent = "☁️ ซิงค์ข้อมูลขึ้น Cloud แล้ว";
+      }
+    }
+
+    async function callGasApi(action, payload = {}) {
+      const url = sanitizeInput(appState.gasUrl || draftGasUrl);
+      if (!url || !url.startsWith("http")) {
+        throw new Error("ยังไม่ได้ตั้งค่า Google Apps Script Web App URL");
+      }
+
+      if (action === "getState" || action === "ping") {
+        const sep = url.includes("?") ? "&" : "?";
+        const res = await fetch(`${url}${sep}action=${encodeURIComponent(action)}&_t=${Date.now()}`, {
+          method: "GET",
+          redirect: "follow"
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "GAS Error");
+        return data;
+      }
+
+      const res = await fetch(url, {
+        method: "POST",
+        redirect: "follow",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action, ...payload })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "GAS POST Error");
+      return data;
+    }
+
+    async function pushStateToGoogleSheetsCloud(silent = true) {
+      if (!appState.gasUrl || isCloudSyncing) return;
+      try {
+        isCloudSyncing = true;
+        const stateCopy = JSON.parse(JSON.stringify(appState));
+        delete stateCopy.connectionLogs;
+        await callGasApi("saveState", { state: stateCopy });
+        updateCloudSyncBadge(true, "Real-Sync ออนไลน์");
+      } catch (err) {
+        updateCloudSyncBadge(false, "ซิงค์ไม่สำเร็จ");
+        if (!silent) showNoticeModal("ซิงค์ผิดพลาด", err.message);
+      } finally {
+        isCloudSyncing = false;
+      }
+    }
+
+    async function handleBackupToGoogleDrive() {
       if (!appState.gasUrl) {
         showNoticeModal("แจ้งเตือน", "กรุณาระบุ Web App URL ก่อน");
         return;
       }
-      showNoticeModal("สำเร็จ", "ส่งคำขอสำรองไฟล์ลง Google Drive แล้ว");
+      try {
+        const res = await callGasApi("backupToDrive", { state: appState });
+        addConnectionLog("Drive Backup", "SUCCESS", `สำรองไฟล์ ${res.fileName || ""}`);
+        saveStateToStorage(true);
+        renderAll();
+        showNoticeModal("สำรองข้อมูลสำเร็จ", `บันทึกไฟล์ "${res.fileName}" ลงโฟลเดอร์ ${res.folderName} ใน Google Drive แล้ว`);
+      } catch (err) {
+        addConnectionLog("Drive Backup", "ERROR", err.message);
+        saveStateToStorage(true);
+        renderAll();
+        showNoticeModal("ผิดพลาด", "สำรองไฟล์ลง Google Drive ไม่สำเร็จ: " + err.message);
+      }
     }
 
     function handleImportBackupJson(event) {
@@ -2194,10 +2304,22 @@
       reader.readAsText(file);
     }
 
-    function handleSaveGasUrl(showModal = false) {
-      appState.gasUrl = sanitizeInput(document.getElementById("gasUrlInput").value);
-      saveStateToStorage();
-      if (showModal) showNoticeModal("สำเร็จ", "บันทึก URL แล้ว");
+    async function handleSaveGasUrl(pullAfterSave = false) {
+      const inputEl = document.getElementById("gasUrlInput");
+      const url = sanitizeInput(inputEl ? inputEl.value : draftGasUrl);
+      if (!url) {
+        showNoticeModal("แจ้งเตือน", "กรุณาวางลิงก์ Google Apps Script Web App URL");
+        return;
+      }
+      appState.gasUrl = url;
+      draftGasUrl = url;
+      saveStateToStorage(true);
+
+      if (pullAfterSave) {
+        await fetchFromGoogleSheetsCloud(true);
+      } else {
+        showNoticeModal("สำเร็จ", "บันทึก URL เรียบร้อยแล้ว");
+      }
     }
 
     function handleDeleteAllReset() {
@@ -2281,18 +2403,53 @@
       showNoticeModal("สำเร็จ", "ส่งข้อความทดสอบสำเร็จ");
     }
 
-    function handleManualSyncCheck() {
-      showNoticeModal("สำเร็จ", "ตรวจสอบการเชื่อมต่อเรียบร้อย");
+    async function handleManualSyncCheck() {
+      try {
+        const res = await callGasApi("ping");
+        addConnectionLog("Ping Check", "SUCCESS", res.message || "OK");
+        updateCloudSyncBadge(true, "Real-Sync ออนไลน์");
+        saveStateToStorage(true);
+        renderAll();
+        showNoticeModal("เชื่อมต่อสำเร็จ", `สถานะเซิร์ฟเวอร์: ${res.message}\nเวลาเซิร์ฟเวอร์: ${res.serverTime}`);
+      } catch (err) {
+        addConnectionLog("Ping Check", "ERROR", err.message);
+        updateCloudSyncBadge(false, "เชื่อมต่อไม่สำเร็จ");
+        saveStateToStorage(true);
+        renderAll();
+        showNoticeModal("เชื่อมต่อไม่สำเร็จ", err.message);
+      }
     }
 
     function handleClearConnectionLogs() {
       appState.connectionLogs = [];
-      saveStateToStorage();
+      saveStateToStorage(true);
       renderAll();
     }
 
-    function fetchFromGoogleSheetsCloud(manual = false) {
-      if (manual) showNoticeModal("ซิงค์ข้อมูล", "ดึงข้อมูลจาก Cloud สำเร็จ");
+    async function fetchFromGoogleSheetsCloud(manual = false) {
+      if (!appState.gasUrl) {
+        if (manual) showNoticeModal("แจ้งเตือน", "กรุณาระบุ Google Apps Script Web App URL ก่อน");
+        return;
+      }
+      try {
+        updateCloudSyncBadge(true, "กำลังดึงข้อมูล...");
+        const res = await callGasApi("getState");
+        if (res.hasData && res.state && typeof res.state === "object") {
+          const currentGasUrl = appState.gasUrl;
+          Object.assign(appState, res.state);
+          appState.gasUrl = currentGasUrl;
+          reconcileRequestsAndParcels();
+          saveStateToStorage(true);
+          renderAll();
+        }
+        addConnectionLog("Cloud Pull", "SUCCESS", "ดึงข้อมูลจาก Google Sheets สำเร็จ");
+        updateCloudSyncBadge(true, "Real-Sync ออนไลน์");
+        if (manual) showNoticeModal("ซิงค์ข้อมูล", "ดึงข้อมูลจาก Google Sheets Cloud สำเร็จ");
+      } catch (err) {
+        addConnectionLog("Cloud Pull", "ERROR", err.message);
+        updateCloudSyncBadge(false, "เชื่อมต่อล้มเหลว");
+        if (manual) showNoticeModal("ผิดพลาด", "ไม่สามารถดึงข้อมูลจาก Cloud ได้: " + err.message);
+      }
     }
 
     function handlePrintAllRequestsHistoryPdf() {
@@ -2711,11 +2868,26 @@
 
     window.addEventListener("DOMContentLoaded", () => {
       loadStateFromStorage();
+      const gasInput = document.getElementById("gasUrlInput");
+      if (gasInput && appState.gasUrl) {
+        gasInput.value = appState.gasUrl;
+        draftGasUrl = appState.gasUrl;
+      }
+      const cloneGasInput = document.getElementById("cloneGasUrlInput");
+      if (cloneGasInput && appState.gasUrl) {
+        cloneGasInput.value = appState.gasUrl;
+      }
       isAdminAuthenticated = false;
       switchPortalMode('user');
       renderAdminAuthView();
       renderAll();
       runSlideshowInterval();
+
+      if (appState.gasUrl) {
+        fetchFromGoogleSheetsCloud(false);
+        clearInterval(cloudSyncTimer);
+        cloudSyncTimer = setInterval(() => fetchFromGoogleSheetsCloud(false), 20000);
+      }
     });
   </script>
 
